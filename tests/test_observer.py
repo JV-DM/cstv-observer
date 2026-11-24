@@ -9,7 +9,7 @@ from observer.gsi import parse_payload, render_gsi_cfg  # noqa: E402
 from observer.lookahead import ClockSync, FutureFeed, PlanConfig, Planner  # noqa: E402
 from observer.model import PlayerSnap, Snapshot, steam64_to_accountid, weapon_class  # noqa: E402
 from observer.director import Director  # noqa: E402
-from observer.scoring import Weights  # noqa: E402
+from observer.scoring import Score, Weights  # noqa: E402
 from observer.tracker import Tracker  # noqa: E402
 
 DEMO = os.environ.get("CSTV_TEST_DEMO", "/tmp/demos/test_demo.dem")
@@ -86,6 +86,35 @@ def test_director_prefers_duel_and_holds():
         snap = parse_payload(payload([quiet, a, b, far]), t)
         tr.update(snap)
         assert d.decide(snap, tr, t).target == first
+
+
+def test_director_confirms_before_cutting_and_avoids_ping_pong():
+    w = Weights()
+    d = Director(w)
+    sc = {"A": Score(total=1.0), "B": Score(total=1.0)}
+    d.scorer.score = lambda *a, **k: sc
+    snap = parse_payload(payload([{"sid": "A", "team": "CT", "pos": (0, 0, 0), "fwd": (1, 0, 0)},
+                                  {"sid": "B", "team": "T", "pos": (5000, 0, 0), "fwd": (1, 0, 0)}]), 0.0)
+    tr = Tracker()
+    tr.update(snap)
+    assert d.decide(snap, tr, 0.0).target == "A"
+    # B pulls clearly ahead after min_dwell: the cut waits for `confirm`, a one-frame spike never cuts
+    t = w.min_dwell + 0.1
+    sc["B"] = Score(total=2.0)
+    assert d.decide(snap, tr, t).target == "A"
+    sc["B"] = Score(total=1.0)
+    assert d.decide(snap, tr, t + 0.1).target == "A"
+    sc["B"] = Score(total=2.0)
+    assert d.decide(snap, tr, t + 0.2).target == "A"
+    assert d.decide(snap, tr, t + 0.25 + w.confirm).target == "B"
+    # going straight back to A needs the extra return margin
+    t2 = t + 0.25 + w.confirm + w.min_dwell + 0.1
+    sc["A"] = Score(total=2.0 * (1 + w.margin) + w.abs_margin + 0.1)
+    for dt in (0.0, w.confirm + 0.1):
+        assert d.decide(snap, tr, t2 + dt).target == "B"
+    sc["A"] = Score(total=2.0 * (1 + w.margin + w.return_margin) + w.abs_margin + 0.1)
+    d.decide(snap, tr, t2 + 0.5)
+    assert d.decide(snap, tr, t2 + 0.6 + w.confirm).target == "A"
 
 
 def test_planner_trade_chain_and_coverage():

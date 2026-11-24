@@ -23,6 +23,7 @@ _BOUNDS = {
     "margin": (0.0, 1.5), "fight_lock": (0.2, 1.0), "killer_follow": (0.0, 1.0),
     "adv": (0.0, 0.9), "second_enemy": (0.0, 1.0), "flashed_penalty": (0.0, 0.9),
     "utility_penalty": (0.0, 0.9), "aim_sigma_deg": (2.0, 25.0),
+    "confirm": (0.0, 1.0), "return_window": (0.0, 10.0), "return_margin": (0.0, 2.0),
 }
 
 _DEMOS: list = []

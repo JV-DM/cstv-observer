@@ -68,9 +68,12 @@ defusing, retake, kills this round), and lowers the score for flashed players an
 **3. Camera policy** (`director.py`): hysteresis so the camera isn't jumpy.
 - When the player on camera dies, it holds about 1 s on the death, then cuts to the killer if he is still in
   action, otherwise to the best player.
-- Minimum shot length is about 2.3 s, shortened when something urgent happens and the current view is quiet.
+- Minimum shot length is about 2.3 s, shortened to 1.3 s when something urgent happens and the current view is quiet.
 - A cut needs the challenger to beat the current player by a relative and an absolute margin.
 - After about 3 s of a quiet view, it switches with a smaller margin.
+- The challenger has to stay ahead for 0.4 s before a normal cut, so a one-frame score spike never moves
+  the camera. Going back to the player it just left (within 6 s) needs a bigger margin, so the camera
+  doesn't ping-pong between two players.
 
 **4. Lookahead planner** (`lookahead.py`). With future kills known, choosing which kills to show is a
 weighted interval-scheduling problem, solved exactly with dynamic programming on every replan. For each kill

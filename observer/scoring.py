@@ -53,7 +53,7 @@ class Weights:
     utility_penalty: float = 0.2
     # director policy
     min_dwell: float = 2.32
-    min_dwell_urgent: float = 0.88
+    min_dwell_urgent: float = 1.3
     margin: float = 0.36
     abs_margin: float = 0.3
     fight_lock: float = 1.0
@@ -62,6 +62,9 @@ class Weights:
     urgent_level: float = 2.9
     idle_level: float = 0.39
     idle_switch_after: float = 3.3
+    confirm: float = 0.4          # challenger must stay ahead this long before a normal cut
+    return_window: float = 6.0    # going back to the player just left within this many seconds...
+    return_margin: float = 0.6    # ...needs this much extra relative margin (no ping-pong)
 
     @classmethod
     def from_dict(cls, d: dict) -> "Weights":
