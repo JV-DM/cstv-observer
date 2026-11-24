@@ -1,0 +1,5 @@
+# The live observer needs only Python 3.11+ (standard library).
+# Optional, for `bench` and `tune` on demo files:
+demoparser2>=0.30
+pandas
+pytest

@@ -1,0 +1,7 @@
+.cache/
+__pycache__/
+*.pyc
+observer.toml
+weights.json
+plugin/**/bin/
+plugin/**/obj/
