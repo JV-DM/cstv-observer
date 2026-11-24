@@ -9,9 +9,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to publish (e.g. v0.1.0)"
-        required: true
-        default: "v0.1.0"
+        description: "Version to publish (leave empty to use the version in observer/__init__.py)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -72,6 +72,11 @@ jobs:
           TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
         shell: pwsh
         run: |
+          if (-not $env:TAG -or $env:TAG -notmatch '^v') {
+            $v = (Select-String -Path observer/__init__.py -Pattern '__version__ = "([^"]+)"').Matches[0].Groups[1].Value
+            $env:TAG = "v$v"
+          }
+          Write-Host "Publishing $env:TAG"
           gh release view $env:TAG *> $null
           if ($LASTEXITCODE -eq 0) {
             gh release upload $env:TAG "dist/CSTV-Observer.exe" --clobber

@@ -37,7 +37,7 @@ The executable only works if CS2 is started with both:
 **Counter-Strike 2 → Properties → General → Launch Options**, paste the line above and start CS2 again.
 Launch options only apply when CS2 starts. Remove them to play normally.
 
-To publish a release: **Actions → Build Windows app → Run workflow** with a version like `v0.2.0`.
+To publish a release: bump `__version__` in `observer/__init__.py`, then **Actions → Build Windows app → Run workflow** (leave the version empty).
 
 ## From source
 
