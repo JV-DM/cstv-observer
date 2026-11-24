@@ -21,6 +21,22 @@ Two modes:
 It finds CS2, installs the GSI config and keeps settings in `%APPDATA%\CSTV Observer`. Heuristic mode
 only.
 
+### Required launch options
+
+The executable only works if CS2 is started with both:
+
+```
+-netconport 2121 -insecure
+```
+
+- `-netconport 2121` opens the console port the app uses to move the camera.
+- `-insecure` is needed too: without it CS2 ignores camera commands from other programs. It disables VAC
+  for that session, so only watch with it, don't play.
+
+**Start CS2** tries to add them. If the camera-control step stays red, close CS2, then in Steam go to
+**Counter-Strike 2 → Properties → General → Launch Options**, paste the line above and start CS2 again.
+Launch options only apply when CS2 starts. Remove them to play normally.
+
 To publish a release: **Actions → Build Windows app → Run workflow** with a version like `v0.2.0`.
 
 ## From source
@@ -32,8 +48,9 @@ python -m observer gsi-cfg > "<Steam>/steamapps/common/Counter-Strike Global Off
 python -m observer run              # --config observer.toml, --dry-run to only log cuts
 ```
 
-Launch CS2 with `-netconport 2121`. CS2 may also need `-insecure`, which disables VAC for that session,
-so use a dedicated observer account. The dashboard is at http://127.0.0.1:3500. Changing the camera by
+Launch CS2 with `-netconport 2121 -insecure` (both required, see
+[Required launch options](#required-launch-options)). `-insecure` disables VAC for that session, so use a
+dedicated observer account. The dashboard is at http://127.0.0.1:3500. Changing the camera by
 hand pauses the director for 8 s.
 
 Settings are in `observer.example.toml` (copy to `observer.toml`), including the console command used to
@@ -105,4 +122,4 @@ tests/
 ## Untested
 
 - The C# plugin has not been compiled or run on a server.
-- Whether `spec_player_by_accountid` moves the camera on current CS2, and whether `-insecure` is needed.
+- Whether `spec_player_by_accountid` moves the camera on current CS2.
