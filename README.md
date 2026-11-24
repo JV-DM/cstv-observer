@@ -13,6 +13,22 @@ There are two modes:
 | **heuristic** (default) | only the spectating client | predicts fights from positions, aim, shooting and damage |
 | **lookahead** | a small plugin on the game server | CSTV is delayed (`tv_delay`), so the server already knows every kill 90+ s before viewers see it; the camera is planned around them |
 
+## Easiest way: the Windows app
+
+1. Open the repo's **Releases** page and download **CSTV-Observer.exe**.
+2. Double-click it. If Windows says "Windows protected your PC", click **More info → Run anyway**
+   (the app isn't code-signed).
+3. A page opens in your browser. Click **Start CS2** and confirm the launch options in Steam.
+4. Open a match to watch in CS2. The camera now follows the action by itself.
+
+The app finds CS2 and installs everything itself. Settings and a log file are kept in
+`%APPDATA%\CSTV Observer`. The app uses the normal (heuristic) mode; lookahead is only available
+from the command line.
+
+**Making a new release:** push a tag such as `v0.2.0`, or run "Build Windows app" from the
+Actions tab. GitHub builds the `.exe` on Windows, tests it, and attaches it to the release.
+Normal pushes don't trigger a build.
+
 ## Results
 
 Benchmarked by replaying a real CS2 match demo (de_mirage, 9 rounds, 65 kills) through the exact same code

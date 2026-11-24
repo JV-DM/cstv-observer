@@ -41,7 +41,16 @@ def main(argv=None):
     t.add_argument("--out", default="weights.json")
     t.add_argument("--seed", type=int, default=0)
 
+    ap_app = sub.add_parser("app", help="start the friendly app (auto setup + control page in the browser)")
+    ap_app.add_argument("--dry-run", action="store_true")
+    ap_app.add_argument("--no-browser", action="store_true")
+    ap_app.add_argument("--selftest", action="store_true")
+
     a = ap.parse_args(argv)
+    if a.cmd == "app":
+        from .app import main as app_main
+        flags = [f for f, on in (("--dry-run", a.dry_run), ("--no-browser", a.no_browser), ("--selftest", a.selftest)) if on]
+        return app_main(flags)
     logging.basicConfig(level=logging.DEBUG if getattr(a, "verbose", False) else logging.INFO,
                         format="%(asctime)s %(levelname)-5s %(message)s", datefmt="%H:%M:%S")
 

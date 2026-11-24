@@ -41,7 +41,16 @@ class NetconController:
         self.last_command: str | None = None
 
     # ------------------------------------------------------------------ socket
-    def _connect(self) -> bool:
+    @property
+    def connected(self) -> bool:
+        return self.dry_run or self._sock is not None
+
+    def try_connect(self) -> bool:
+        """Background reconnect attempt (quiet)."""
+        with self._lock:
+            return self._connect(quiet=True)
+
+    def _connect(self, quiet: bool = False) -> bool:
         if self.dry_run:
             return True
         if self._sock is not None:
@@ -57,7 +66,8 @@ class NetconController:
                 self._send_raw(c)
             return True
         except OSError as e:
-            log.warning("netcon connect failed (%s). Is CS2 running with -netconport %s ?", e, self.port)
+            (log.debug if quiet else log.warning)(
+                "netcon connect failed (%s). Is CS2 running with -netconport %s ?", e, self.port)
             self._sock = None
             return False
 
