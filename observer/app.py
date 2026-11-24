@@ -16,7 +16,9 @@ import logging
 import os
 import re
 import secrets
+import shutil
 import socket
+import subprocess
 import sys
 import threading
 import time
@@ -173,8 +175,97 @@ def gsi_cfg_installed(settings: Settings) -> bool:
         return False
 
 
+_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0          # CREATE_NO_WINDOW
+_DETACHED = 0x00000008 if sys.platform == "win32" else 0           # DETACHED_PROCESS
+
+
+def _run(args: list[str], timeout: float = 10.0) -> subprocess.CompletedProcess:
+    return subprocess.run(args, capture_output=True, text=True, stdin=subprocess.DEVNULL,
+                          creationflags=_NO_WINDOW, timeout=timeout)
+
+
+_running_cache: tuple[float, bool | None] = (0.0, None)
+
+
+def cs2_running() -> bool | None:
+    """True/False, or None if it can't be determined. Cached for 2 s (the page polls often)."""
+    global _running_cache
+    now = time.monotonic()
+    if now - _running_cache[0] < 2.0:
+        return _running_cache[1]
+    try:
+        if sys.platform == "win32":
+            out = _run(["tasklist", "/FI", "IMAGENAME eq cs2.exe", "/NH", "/FO", "CSV"]).stdout.lower()
+            val: bool | None = "cs2.exe" in out
+        else:
+            val = _run(["pgrep", "-x", "cs2"]).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        val = None
+    _running_cache = (now, val)
+    return val
+
+
+def close_cs2(wait: float = 20.0) -> bool:
+    global _running_cache
+    try:
+        if sys.platform == "win32":
+            _run(["taskkill", "/IM", "cs2.exe", "/F"])
+        else:
+            _run(["pkill", "-x", "cs2"])
+    except (OSError, subprocess.SubprocessError):
+        return False
+    end = time.monotonic() + wait
+    while time.monotonic() < end:
+        _running_cache = (0.0, None)
+        if not cs2_running():
+            time.sleep(2.0)          # give Steam a moment to register that the game closed
+            return True
+        time.sleep(0.5)
+    return False
+
+
+def _steam_exe() -> Path | None:
+    if sys.platform == "win32":
+        sp = steam_path()
+        exe = sp / "steam.exe" if sp else None
+        return exe if exe and exe.exists() else None
+    found = shutil.which("steam")
+    return Path(found) if found else None
+
+
+def _cs2_exe(settings: Settings) -> Path | None:
+    cfg = find_cs2_cfg_dir(settings.cs2_cfg_dir)
+    if cfg is None:
+        return None
+    game = cfg.parent.parent                         # .../game/csgo/cfg -> .../game
+    exe = game / "bin" / "win64" / "cs2.exe"
+    return exe if exe.exists() else None
+
+
 def launch_cs2(settings: Settings) -> tuple[bool, str]:
-    """Start CS2 through Steam with our launch options. Steam asks the user to confirm the options once."""
+    """Start CS2 with our launch options.
+
+    Uses `steam.exe -applaunch 730 <options>`: the steam://run/730//<options>/ link is known to
+    start the game but silently drop the options, which is why camera control never connected.
+    Falls back to starting cs2.exe directly (Steam must be running), then to the steam:// link.
+    """
+    opts = settings.launch_options().split()
+    popen_kw = dict(stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    close_fds=True, creationflags=_NO_WINDOW | _DETACHED)
+    steam = _steam_exe()
+    if steam is not None:
+        try:
+            subprocess.Popen([str(steam), "-applaunch", str(CS2_APPID), *opts], **popen_kw)
+            return True, f"{steam} -applaunch {CS2_APPID} {' '.join(opts)}"
+        except OSError as e:
+            log.warning("steam -applaunch failed: %s", e)
+    exe = _cs2_exe(settings)
+    if exe is not None:
+        try:
+            subprocess.Popen([str(exe), *opts], cwd=str(exe.parent), **popen_kw)
+            return True, f"{exe} {' '.join(opts)}"
+        except OSError as e:
+            log.warning("starting cs2.exe failed: %s", e)
     url = f"steam://run/{CS2_APPID}//{urllib.parse.quote(settings.launch_options())}/"
     try:
         if sys.platform == "win32":
@@ -196,6 +287,7 @@ class App:
         self.quit_event = threading.Event()
         self.engine = None
         self.message = ""
+        self.busy = False
         self.rebuild()
 
     def rebuild(self):
@@ -218,27 +310,52 @@ class App:
             "cs2_found": cfg_dir is not None,
             "cs2_dir": str(cfg_dir) if cfg_dir else "",
             "cfg_installed": gsi_cfg_installed(s),
+            "cs2_running": True if self.dry_run else cs2_running(),
             "gsi_live": gsi_ok,
             "spectating": bool(gsi_ok and snap and snap.players),
             "camera_control": eng.ctl.connected or self.dry_run,
+            "commands_ignored": eng.ctl.commands_ignored,
+            "netcon_error": eng.ctl.last_error,
+            "busy": self.busy,
             "launch_options": s.launch_options(),
             "settings": asdict(s),
             "message": self.message,
             "dry_run": self.dry_run,
         }
 
+    def _launch(self, restart: bool):
+        try:
+            self.busy = True
+            install_gsi_cfg(self.settings)
+            if restart and cs2_running():
+                self.message = "Closing CS2…"
+                if not close_cs2():
+                    self.message = "Couldn't close CS2. Close it yourself, then click Start CS2."
+                    return
+            ok, how = launch_cs2(self.settings)
+            log.info("launch CS2: %s (%s)", ok, how)
+            self.engine.ctl.reset_feedback()
+            self.message = ("Starting CS2 with camera control… This takes 20 to 60 seconds. "
+                            "If Steam asks about launch options, click OK." if ok else f"Could not start CS2: {how}")
+        finally:
+            self.busy = False
+
     def action(self, data: dict) -> dict:
         a = data.get("action")
         if a == "install_cfg":
             ok, msg = install_gsi_cfg(self.settings)
-            self.message = ("Game config installed. If CS2 is already open, restart it." if ok else msg)
+            self.message = ("Game link file installed. If CS2 is already open, restart it." if ok else msg)
             return {"ok": ok, "message": self.message}
-        if a == "launch_cs2":
-            install_gsi_cfg(self.settings)
-            ok, msg = launch_cs2(self.settings)
-            self.message = ("Starting CS2… If Steam asks about launch options, click Continue / OK."
-                            if ok else f"Could not start CS2: {msg}")
-            return {"ok": ok, "message": self.message}
+        if a in ("launch_cs2", "restart_cs2"):
+            if self.busy:
+                return {"ok": False, "message": "Already starting CS2…"}
+            if a == "launch_cs2" and cs2_running():
+                self.message = ("CS2 is already open, so it can't get the camera-control option. "
+                                "Click Restart CS2 to close and reopen it.")
+                return {"ok": False, "message": self.message}
+            threading.Thread(target=self._launch, args=(a == "restart_cs2",), daemon=True).start()
+            self.message = "Closing and reopening CS2…" if a == "restart_cs2" else "Starting CS2…"
+            return {"ok": True, "message": self.message}
         if a == "save_settings":
             d = data.get("settings") or {}
             port_before = self.settings.port

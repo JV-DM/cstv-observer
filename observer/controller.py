@@ -39,6 +39,8 @@ class NetconController:
         self._failures = 0
         self.last_sent: str | None = None
         self.last_command: str | None = None
+        self.last_error: str = ""
+        self.ignored_streak = 0     # verified cuts that did not take effect, across all templates
 
     # ------------------------------------------------------------------ socket
     @property
@@ -61,11 +63,13 @@ class NetconController:
             s.settimeout(0.5)
             self._sock = s
             log.info("connected to CS2 netcon %s:%s", self.host, self.port)
+            self.last_error = ""
             threading.Thread(target=self._drain, args=(s,), daemon=True).start()
             for c in self.init_commands:
                 self._send_raw(c)
             return True
         except OSError as e:
+            self.last_error = str(e)
             (log.debug if quiet else log.warning)(
                 "netcon connect failed (%s). Is CS2 running with -netconport %s ?", e, self.port)
             self._sock = None
@@ -141,14 +145,27 @@ class NetconController:
         if spectated == target:
             self._pending = None
             self._failures = 0
+            self.ignored_streak = 0
             return
         if time.monotonic() - sent > self.verify_timeout:
             self._pending = None
             self._failures += 1
+            self.ignored_streak += 1
             if self._failures >= 2 and len(self.templates) > 1:
                 self.tpl_idx = (self.tpl_idx + 1) % len(self.templates)
                 self._failures = 0
                 log.warning("camera did not follow; switching command template to: %s", self.templates[self.tpl_idx])
+
+    @property
+    def commands_ignored(self) -> bool:
+        """Connected, but CS2 doesn't move the camera (e.g. console commands blocked without -insecure)."""
+        return self.connected and not self.dry_run and self.ignored_streak >= 2 * len(self.templates)
+
+    def reset_feedback(self):
+        self.ignored_streak = 0
+        self._failures = 0
+        self.tpl_idx = 0
+        self._pending = None
 
     def human_override(self, spectated: str | None, grace: float = 1.0) -> bool:
         """True if someone changed the camera by hand (spectated != our last target after the grace period)."""

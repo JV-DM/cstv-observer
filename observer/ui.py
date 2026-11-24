@@ -45,11 +45,16 @@ code{background:#11141a;padding:2px 6px;border-radius:5px}
    <div class="d">Lets CS2 tell this app where every player is. Installed automatically.</div></div>
    <div class="act"><button id="b2" onclick="act('install_cfg')">Install again</button></div></div>
  <div class="step"><div class="dot" id="s3">3</div><div><div class="t">CS2 is running with camera control</div>
-   <div class="d">Click <b>Start CS2</b>. Steam may ask to confirm the launch options. Click <b>OK</b>.
-   If CS2 is already open, close it first and start it from here.</div></div>
-   <div class="act"><button class="primary" onclick="act('launch_cs2')">Start CS2</button></div></div>
- <div class="step"><div class="dot" id="s4">4</div><div><div class="t">Watching a match</div>
+   <div class="d" id="s3d"></div></div>
+   <div class="act"><button class="primary" id="b3" onclick="act(S.cs2_running?'restart_cs2':'launch_cs2')">Start CS2</button></div></div>
+ <div class="step"><div class="dot" id="s4">4</div><div><div class="t">CS2 is sending game data</div>
+   <div class="d" id="s4d"></div></div></div>
+ <div class="step"><div class="dot" id="s5">5</div><div><div class="t">Watching a match</div>
    <div class="d">In CS2, open a match to watch: a CSTV/GOTV broadcast, a friend's server as spectator, or a demo (Watch → Your Matches).</div></div></div>
+ <div class="step hidden" id="manual"><div class="dot">?</div><div><div class="t">Still red? Set the launch options in Steam yourself</div>
+   <div class="d">1. Close CS2. 2. In Steam, right-click <b>Counter-Strike 2</b> → <b>Properties</b> → <b>General</b>.
+   3. Paste this into <b>Launch Options</b>: <code id="optsCode"></code> 4. Start CS2 from Steam as usual.</div></div>
+   <div class="act"><button onclick="navigator.clipboard.writeText(S.launch_options);banner('Copied. Now paste it into Steam → Properties → Launch Options.')">Copy</button></div></div>
 </div>
 
 <div class="card"><h2>Live</h2>
@@ -90,8 +95,23 @@ function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','
 let S={},T={};
 function render(){
  dot('s1',S.cs2_found,1);$('s1d').textContent=S.cs2_found?('Found: '+S.cs2_dir):'Not found. If CS2 is installed, set its folder under Advanced settings.';
- dot('s2',S.cfg_installed,2);dot('s3',S.camera_control&&S.gsi_live,3);dot('s4',S.spectating,4);
- const ready=S.cs2_found&&S.cfg_installed&&S.camera_control&&S.spectating;
+ dot('s2',S.cfg_installed,2);
+ const cam=S.camera_control&&!S.commands_ignored;dot('s3',cam,3);
+ let d3;
+ if(S.busy)d3='Working on it…';
+ else if(S.commands_ignored)d3='CS2 is connected but ignores camera commands. Turn on "-insecure" under Advanced settings, save, then click Restart CS2.';
+ else if(S.camera_control)d3='Connected. The app can move the camera.';
+ else if(S.cs2_running)d3='CS2 is open but was started without camera control. Click Restart CS2 to close and reopen it with the right options.';
+ else d3='CS2 isn\u2019t running. Click Start CS2. Steam may ask you to confirm the launch options: click OK.';
+ $('s3d').textContent=d3;
+ $('b3').textContent=S.cs2_running?'Restart CS2':'Start CS2';$('b3').disabled=!!S.busy;
+ $('b3').className=cam?'':'primary';
+ dot('s4',S.gsi_live,4);
+ $('s4d').textContent=S.gsi_live?'Receiving game data.':(S.cs2_running?'Nothing yet. CS2 only reads the game link file when it starts, so if it was open before this app, click Restart CS2.':'Waiting for CS2 to start.');
+ dot('s5',S.spectating,5);
+ $('optsCode').textContent=S.launch_options||'';
+ $('manual').classList.toggle('hidden',cam||!S.cs2_running);
+ const ready=S.cs2_found&&S.cfg_installed&&cam&&S.spectating;
  $('setupCard').style.opacity=ready?.55:1;
  paused=!!T.paused;
  let st,why;
@@ -102,7 +122,7 @@ function render(){
  else{st='Automatic camera ON';why=T.phase==='freezetime'?'Freeze time: picking who to start on':''}
  $('state').textContent=st;$('state').className='state '+(S.spectating&&S.camera_control&&!paused?'on':'off');$('stateWhy').textContent=why;
  $('toggle').textContent=paused?'Resume':'Pause';
- const cam=(T.players||[]).find(p=>p.on_camera);$('oncam').textContent=cam?cam.name:'—';$('reason').textContent=T.reason?('Why: '+T.reason):'';
+ const onCam=(T.players||[]).find(p=>p.on_camera);$('oncam').textContent=onCam?onCam.name:'—';$('reason').textContent=T.reason?('Why: '+T.reason):'';
  const k=T.stats||{};$('kSeen').textContent=k.seen||0;$('kAll').textContent=k.kills||0;$('kCuts').textContent=k.cuts||0;
  $('kMap').textContent=T.map?(T.map.replace('de_','')+' / '+((T.round??0)+1)):'—';
  const ps=T.players||[];const mx=Math.max(1,...ps.map(p=>p.score));
