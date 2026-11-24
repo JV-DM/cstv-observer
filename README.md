@@ -3,6 +3,8 @@
 Auto-director for CS2 CSTV/GOTV. It reads Game State Integration from a spectating CS2 client, predicts
 which player is about to be in a kill, and moves the camera there through CS2's network console.
 
+It's a CS2 port of the GOTV observer I used before.
+
 Two modes:
 
 - **heuristic** (default): needs only the spectating client. Predicts fights from positions, aim,
