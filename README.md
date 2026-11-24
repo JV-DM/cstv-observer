@@ -25,8 +25,8 @@ The app finds CS2 and installs everything itself. Settings and a log file are ke
 `%APPDATA%\CSTV Observer`. The app uses the normal (heuristic) mode; lookahead is only available
 from the command line.
 
-**Making a new release:** push a tag such as `v0.2.0`, or run "Build Windows app" from the
-Actions tab. GitHub builds the `.exe` on Windows, tests it, and attaches it to the release.
+**Making a new release:** on GitHub open **Actions → Build Windows app → Run workflow**, type the
+version (e.g. `v0.2.0`) and click **Run workflow**. GitHub builds the `.exe` on Windows, tests it, and publishes it as a release.
 Normal pushes don't trigger a build.
 
 ## Results
